@@ -8,6 +8,7 @@ use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use InvalidArgumentException;
 use Liberu\Foundation\Integrations\Support\SsrfGuard;
 use Liberu\Integrations\Sso\Exceptions\SsoException;
 use Liberu\Integrations\Sso\Models\SsoConnection;
@@ -30,7 +31,7 @@ class OidcClient
 
         return Cache::remember("sso_discovery:{$issuer}", 3600, function () use ($issuer): array {
             // SSRF: the issuer is admin-configured — never fetch a non-public host.
-            SsrfGuard::assertPublicHttps($issuer);
+            self::assertPublicHttps($issuer);
             $response = Http::acceptJson()->get($issuer.'/.well-known/openid-configuration');
 
             if (! $response->successful()) {
@@ -73,7 +74,7 @@ class OidcClient
         $endpoint = (string) $this->discover($connection)['token_endpoint'];
         // SSRF: the token endpoint comes from the discovery doc and receives the
         // client_secret — never POST it to a non-public host.
-        SsrfGuard::assertPublicHttps($endpoint);
+        self::assertPublicHttps($endpoint);
 
         $body = [
             'grant_type' => 'authorization_code',
@@ -117,7 +118,7 @@ class OidcClient
         $issuer = rtrim((string) $connection->getAttribute('issuer_url'), '/');
 
         return Cache::remember("sso_jwks:{$issuer}", 3600, function () use ($uri): array {
-            SsrfGuard::assertPublicHttps($uri);
+            self::assertPublicHttps($uri);
             $response = Http::acceptJson()->get($uri);
             if (! $response->successful()) {
                 throw new SsoException('Could not load the identity provider keys.');
@@ -166,7 +167,7 @@ class OidcClient
     public function userinfo(SsoConnection $connection, string $accessToken): array
     {
         $endpoint = (string) $this->discover($connection)['userinfo_endpoint'];
-        SsrfGuard::assertPublicHttps($endpoint);
+        self::assertPublicHttps($endpoint);
 
         $response = Http::withToken($accessToken)->acceptJson()->get($endpoint);
 
@@ -175,5 +176,14 @@ class OidcClient
         }
 
         return (array) $response->json();
+    }
+
+    private static function assertPublicHttps(string $url): void
+    {
+        try {
+            SsrfGuard::assertPublicHttps($url);
+        } catch (InvalidArgumentException $e) {
+            throw new SsoException($e->getMessage(), 0, $e);
+        }
     }
 }

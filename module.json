@@ -3,7 +3,7 @@
   "name": "integrations-sso",
   "display_name": "SSO Integrations",
   "description": "OIDC and SAML SSO connections, controllers, middleware, and JIT provisioning.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "category": "adapter",
   "provider": "Liberu\\Integrations\\Sso\\IntegrationsSsoServiceProvider",
   "requires": {
